@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#000814;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#001d3d;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="100" height="100" fill="url(#bg)" rx="18"/>
+
+  <!-- Bunny - Much Larger! -->
+  <g filter="url(#glow)">
+    <!-- Bunny Ears -->
+    <ellipse cx="35" cy="28" rx="10" ry="32" fill="white" transform="rotate(-12 35 28)"/>
+    <ellipse cx="65" cy="28" rx="10" ry="32" fill="white" transform="rotate(12 65 28)"/>
+
+    <!-- Ear Inner Details -->
+    <ellipse cx="35" cy="30" rx="5" ry="18" fill="rgba(255,200,220,0.3)" transform="rotate(-12 35 30)"/>
+    <ellipse cx="65" cy="30" rx="5" ry="18" fill="rgba(255,200,220,0.3)" transform="rotate(12 65 30)"/>
+
+    <!-- Bunny Head/Body -->
+    <ellipse cx="50" cy="58" rx="32" ry="35" fill="white"/>
+
+    <!-- Bunny Eyes -->
+    <circle cx="40" cy="52" r="4.5" fill="#1a1a1a"/>
+    <circle cx="60" cy="52" r="4.5" fill="#1a1a1a"/>
+
+    <!-- Eye Highlights -->
+    <circle cx="41.5" cy="50.5" r="1.5" fill="white" opacity="0.8"/>
+    <circle cx="61.5" cy="50.5" r="1.5" fill="white" opacity="0.8"/>
+
+    <!-- Bunny Nose -->
+    <circle cx="50" cy="62" r="4" fill="rgba(255,150,150,0.4)"/>
+
+    <!-- Mouth suggestion -->
+    <path d="M 50,64 Q 45,67 42,65" fill="none" stroke="rgba(0,0,0,0.15)" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M 50,64 Q 55,67 58,65" fill="none" stroke="rgba(0,0,0,0.15)" stroke-width="1.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- Tiny star accents -->
+  <circle cx="12" cy="12" r="1.5" fill="white" opacity="0.5"/>
+  <circle cx="88" cy="18" r="1.2" fill="white" opacity="0.4"/>
+</svg>
