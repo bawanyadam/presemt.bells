@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>present.bells</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Quicksand:wght@300;700&display=swap');
+
+        /* Reset & Layout */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Critical: prevents scrollbars */
+            background-color: #0d1b2a;
+            font-family: 'Quicksand', sans-serif;
+            touch-action: none; /* Disables standard touch gestures */
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        /* Canvas fills the screen */
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            padding: 30px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .game-text {
+            color: white;
+            text-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
+            font-weight: 300; /* Thinner font for elegance */
+        }
+
+        /* Start / Game Over Screens */
+        #menu-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(13, 27, 42, 0.4);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            transition: opacity 0.8s ease;
+            pointer-events: auto;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none !important;
+        }
+
+        .title {
+            font-size: 5rem;
+            color: #fff;
+            text-shadow: 0 0 30px rgba(255, 255, 255, 0.4);
+            margin-bottom: 0.5rem;
+            text-align: center;
+            font-weight: 300;
+            letter-spacing: -2px;
+        }
+        
+        @media (max-width: 600px) {
+            .title { font-size: 3.5rem; }
+        }
+
+        .btn {
+            background: transparent;
+            color: #fff;
+            font-family: 'Quicksand', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            padding: 15px 45px;
+            border: 1px solid rgba(255,255,255,0.5);
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.4s ease;
+            text-transform: lowercase;
+            letter-spacing: 3px;
+            margin-top: 30px;
+        }
+
+        .btn:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: #fff;
+            transform: scale(1.02);
+            box-shadow: 0 0 25px rgba(255,255,255,0.2);
+        }
+
+        /* Combo Popup */
+        #combo-display {
+            position: absolute;
+            top: 20%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3rem;
+            color: #fffacD;
+            opacity: 0;
+            transition: opacity 0.5s, transform 0.8s ease-out;
+            text-shadow: 0 0 20px rgba(255, 250, 205, 0.6);
+            pointer-events: none;
+            font-weight: 300;
+        }
+        
+        .combo-active {
+            opacity: 0.8 !important;
+            transform: translate(-50%, -100%) scale(1.1) !important;
+        }
+
+        #score-container {
+            font-size: 3rem;
+            opacity: 0.9;
+        }
+        
+        #high-score-display {
+            font-size: 0.9rem;
+            opacity: 0.5;
+            margin-top: 5px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        #start-hint {
+            position: absolute;
+            bottom: 20%;
+            width: 100%;
+            text-align: center;
+            color: rgba(255,255,255,0.6);
+            font-size: 1.2rem;
+            pointer-events: none;
+            animation: pulse 3s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.3; }
+            50% { opacity: 0.7; }
+            100% { opacity: 0.3; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div>
+            <div id="score-container" class="game-text">0</div>
+            <div id="high-score-display" class="game-text">best: 0</div>
+        </div>
+        <div id="start-hint" class="hidden game-text">tap to jump</div>
+    </div>
+
+    <div id="combo-display" class="game-text">x2</div>
+
+    <div id="menu-layer">
+        <h1 class="title">present.bells</h1>
+        <p class="game-text" style="font-size: 1.1rem; opacity: 0.7; margin-bottom: 30px; text-align: center; padding: 0 20px; line-height: 1.6;">
+            a quiet moment.<br>drift through the clouds.
+        </p>
+        <button id="start-btn" class="btn">begin</button>
+        <div id="final-score-area" class="hidden" style="text-align: center; margin-bottom: 20px;">
+            <div style="font-size: 1.5rem; color: #aaa; margin-bottom: 10px; margin-top: 30px;">score</div>
+            <div id="final-score" class="title" style="font-size: 4rem; margin: 0;">0</div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * PRESENT.BELLS
+         * A tribute to Winterbells.
+         * * Logic:
+         * - World Coordinates: Y=0 is ground. Y increases upwards.
+         * - Physics: Heavily damped, "cloud-like" movement.
+         */
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false }); 
+
+        // --- CONFIGURATION ---
+        const CONFIG = {
+            gravity: 0.32,      // Very floaty
+            bunnyRadius: 16,
+            gameMaxWidth: 800,
+            starCount: 100,
+            bellSpawnGap: 110,
+            birdSpawnChance: 0.003
+        };
+
+        // --- STATE ---
+        let state = {
+            width: 0,
+            height: 0,
+            scale: 1, 
+            centerX: 0, 
+            
+            screen: 'menu', // menu, playing, gameover
+            score: 0,
+            displayScore: 0,
+            highScore: localStorage.getItem('presentbells_hs') || 0,
+            multiplier: 1,
+            
+            cameraY: 0, 
+            targetCameraY: 0,
+            
+            // "Cloud" Physics Input
+            rawMouseX: 0, 
+            smoothedMouseX: 0, 
+            inputActive: false, // Only active after first jump
+            
+            frames: 0
+        };
+
+        // --- ENTITIES ---
+        let bunny = {
+            x: 0, 
+            y: 0, 
+            vx: 0,
+            vy: 0,
+            rotation: 0,
+            scaleX: 1,
+            scaleY: 1,
+            grounded: true
+        };
+
+        let bells = [];
+        let birds = [];
+        let particles = [];
+        let stars = [];
+
+        // --- RESIZE & SCALING ---
+        function resize() {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = document.body.getBoundingClientRect();
+            
+            state.width = rect.width;
+            state.height = rect.height;
+            state.scale = dpr;
+            state.centerX = state.width / 2;
+
+            canvas.width = state.width * dpr;
+            canvas.height = state.height * dpr;
+
+            ctx.scale(dpr, dpr);
+
+            if (stars.length === 0) {
+                for(let i=0; i<CONFIG.starCount; i++) {
+                    stars.push({
+                        x: Math.random(), 
+                        y: Math.random(), 
+                        size: Math.random() * 2 + 0.2,
+                        alpha: Math.random() * 0.7 + 0.1
+                    });
+                }
+            }
+        }
+        window.addEventListener('resize', resize);
+        resize(); 
+
+        // --- INPUT ---
+        function updateInput(clientX) {
+            // Map Screen X to Game Logic X
+            state.rawMouseX = clientX - state.centerX;
+        }
+
+        // Tap/Click to Jump Logic
+        function handleAction() {
+            if (state.screen === 'playing' && bunny.grounded) {
+                // First Jump
+                bunny.vy = 16;
+                bunny.grounded = false;
+                bunny.scaleX = 0.8;
+                bunny.scaleY = 1.3;
+                state.inputActive = true; // Enable horizontal control only after launch
+                createExplosion(0, 0, '#fff');
+                
+                // Set initial mouse pos to avoid snapping
+                state.smoothedMouseX = bunny.x; 
+                
+                document.getElementById('start-hint').classList.add('hidden');
+            }
+        }
+
+        window.addEventListener('mousemove', e => updateInput(e.clientX));
+        window.addEventListener('touchmove', e => {
+            e.preventDefault();
+            updateInput(e.touches[0].clientX);
+        }, { passive: false });
+        
+        // Click handlers for jumping
+        window.addEventListener('mousedown', handleAction);
+        window.addEventListener('touchstart', (e) => {
+            handleAction();
+            updateInput(e.touches[0].clientX); // Also update pos on tap
+        }, { passive: false });
+
+
+        // --- HELPERS ---
+        function worldToScreen(wx, wy) {
+            const sx = state.centerX + wx;
+            const sy = state.height - (wy - state.cameraY) - 50; 
+            return { x: sx, y: sy };
+        }
+
+        function spawnBell(y) {
+            const margin = 50;
+            const limit = Math.min(state.width, CONFIG.gameMaxWidth) / 2 - margin;
+            const x = (Math.random() * limit * 2) - limit;
+            
+            const difficulty = Math.min(state.score / 150000, 1);
+            const size = 20 - (8 * difficulty); 
+
+            bells.push({
+                x: x,
+                y: y,
+                radius: size,
+                hit: false,
+                wiggle: 0
+            });
+        }
+
+        function createExplosion(x, y, color) {
+            for(let i=0; i<15; i++) {
+                const speed = Math.random() * 4 + 1;
+                const angle = Math.random() * Math.PI * 2;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 1.0,
+                    color: color
+                });
+            }
+        }
+
+        function resetGame() {
+            state.score = 0;
+            state.displayScore = 0;
+            state.multiplier = 1;
+            state.cameraY = 0;
+            state.targetCameraY = 0;
+            state.screen = 'playing';
+            
+            // Reset Bunny
+            bunny.x = 0;
+            bunny.y = 0;
+            bunny.vx = 0;
+            bunny.vy = 0;
+            bunny.scaleX = 1;
+            bunny.scaleY = 1;
+            bunny.grounded = true;
+            
+            // Reset Input
+            state.rawMouseX = 0;
+            state.smoothedMouseX = 0;
+            state.inputActive = false;
+
+            bells = [];
+            birds = [];
+            particles = [];
+
+            // Spawn initial bells
+            for(let y=120; y<1500; y+=CONFIG.bellSpawnGap) {
+                spawnBell(y);
+            }
+
+            // UI
+            document.getElementById('menu-layer').classList.add('hidden');
+            document.getElementById('final-score-area').classList.add('hidden');
+            document.getElementById('start-hint').classList.remove('hidden');
+            document.getElementById('score-container').innerText = "0";
+        }
+
+        function landSafely() {
+            // Reset to idle on ground without losing score (if score was 0 anyway)
+            // or just allow a retry.
+            // For this specific request: "land back on the floor to start again without the game starting over"
+            // We maintain the score if any? No, usually landing means ending a run, but here
+            // we treat it as a "soft reset" if we haven't gone anywhere.
+            
+            bunny.y = 0;
+            bunny.vy = 0;
+            bunny.vx = 0;
+            bunny.grounded = true;
+            state.inputActive = false; // Disable horizontal control
+            
+            // Visual squash
+            bunny.scaleX = 1.2;
+            bunny.scaleY = 0.8;
+            
+            document.getElementById('start-hint').classList.remove('hidden');
+            
+            // Reset multiplier on land
+            state.multiplier = 1;
+        }
+
+        function gameOver() {
+            state.screen = 'gameover';
+            
+            if (state.score > state.highScore) {
+                state.highScore = state.score;
+                localStorage.setItem('presentbells_hs', state.highScore);
+            }
+
+            document.getElementById('menu-layer').classList.remove('hidden');
+            document.getElementById('start-btn').innerText = "wake up";
+            document.getElementById('final-score-area').classList.remove('hidden');
+            document.getElementById('final-score').innerText = Math.floor(state.score).toLocaleString();
+            document.getElementById('high-score-display').innerText = `best: ${Math.floor(state.highScore).toLocaleString()}`;
+            document.getElementById('start-hint').classList.add('hidden');
+        }
+
+        // --- PHYSICS LOOP ---
+        function update() {
+            state.frames++;
+
+            // 1. Camera Logic (Very Smooth)
+            let idealCameraY = bunny.y - (state.height * 0.45);
+            if (idealCameraY < 0) idealCameraY = 0;
+            
+            if (idealCameraY > state.targetCameraY) {
+                state.targetCameraY = idealCameraY;
+            }
+            
+            // Slow camera catchup
+            state.cameraY += (state.targetCameraY - state.cameraY) * 0.08;
+
+            if (state.screen !== 'playing') return;
+
+            // 2. Bunny Physics - "Cloud Gliding"
+            
+            // INPUT SMOOTHING
+            // Extremely high smoothing factor for that lazy feel
+            // Was 0.1, now 0.05
+            if (state.inputActive) {
+                state.smoothedMouseX += (state.rawMouseX - state.smoothedMouseX) * 0.05; 
+            } else {
+                // If on ground, slowly return to center or just stop
+                state.smoothedMouseX += (0 - state.smoothedMouseX) * 0.1;
+            }
+
+            // ACCELERATION
+            if (state.inputActive) {
+                const targetX = state.smoothedMouseX;
+                const dx = targetX - bunny.x;
+                
+                // Very, very low acceleration
+                // Was 0.02, now 0.006
+                bunny.vx += dx * 0.006; 
+            }
+
+            // RESISTANCE / DRAG
+            // High drag to counter the drift, creates "thick air" feel
+            bunny.vx *= 0.93; 
+
+            // Apply Velocity
+            bunny.x += bunny.vx;
+
+            // Soft Walls
+            const limit = Math.min(state.width, CONFIG.gameMaxWidth) / 2 - CONFIG.bunnyRadius;
+            if (bunny.x < -limit) {
+                bunny.x = -limit;
+                bunny.vx *= -0.5;
+            }
+            if (bunny.x > limit) {
+                bunny.x = limit;
+                bunny.vx *= -0.5;
+            }
+
+            // Gravity
+            if (!bunny.grounded) {
+                bunny.vy -= CONFIG.gravity;
+                bunny.y += bunny.vy;
+            }
+
+            // Rotation
+            bunny.rotation = bunny.vx * 0.04;
+            
+            // Squash Restoration
+            bunny.scaleX += (1 - bunny.scaleX) * 0.05;
+            bunny.scaleY += (1 - bunny.scaleY) * 0.05;
+
+            // 3. Ground Collision & Safety Net
+            if (bunny.y <= 0) {
+                // Check if we are in the "safety zone" (Camera hasn't moved much)
+                // If cameraY is > 500, the ground is gone visually, so we fall through.
+                // 1000 is generous safety.
+                if (state.cameraY < 500) {
+                    landSafely();
+                } else {
+                    // We are high up, falling below 0 means death because 0 is way off screen
+                    // But we actually use screen space culling. 
+                    // Let's use the explicit Kill Zone logic.
+                    // If y < cameraY - 100, we die.
+                    // If we hit y=0, we land safely.
+                    // This naturally handles it: if cameraY is high, we hit the kill zone BEFORE y=0.
+                    landSafely(); 
+                }
+            }
+            
+            // Kill Zone (Abyss)
+            if (bunny.y < state.cameraY - 150) {
+                gameOver();
+            }
+
+            // 4. Entity Management
+            
+            let highestY = 0;
+            if (bells.length > 0) highestY = bells[bells.length-1].y;
+            
+            const generateThreshold = state.cameraY + state.height * 1.5;
+            
+            if (highestY < generateThreshold) {
+                spawnBell(highestY + CONFIG.bellSpawnGap);
+                
+                if (Math.random() < CONFIG.birdSpawnChance) {
+                    const birdY = highestY + CONFIG.bellSpawnGap + 50;
+                    const dir = Math.random() > 0.5 ? 1 : -1;
+                    const limit = Math.min(state.width, CONFIG.gameMaxWidth) / 2 + 50;
+                    birds.push({
+                        y: birdY,
+                        x: dir === 1 ? -limit : limit,
+                        dir: dir,
+                        speed: 1.5 + Math.random() * 1.5, // Slow, majestic birds
+                        wing: 0
+                    });
+                }
+            }
+
+            // Cleanup
+            const cleanupThreshold = state.cameraY - 150;
+            bells = bells.filter(b => b.y > cleanupThreshold);
+            birds = birds.filter(b => {
+                const xLimit = Math.min(state.width, CONFIG.gameMaxWidth) / 2 + 100;
+                return b.y > cleanupThreshold && b.x > -xLimit && b.x < xLimit;
+            });
+
+
+            // 5. Collisions
+            if (bunny.vy < 0) {
+                // Bells
+                for (let b of bells) {
+                    if (b.hit) continue;
+                    const dx = bunny.x - b.x;
+                    const dy = bunny.y - b.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    
+                    if (dist < CONFIG.bunnyRadius + b.radius + 15) {
+                        b.hit = true;
+                        bunny.vy = 14; 
+                        bunny.scaleY = 1.3;
+                        bunny.scaleX = 0.8;
+                        
+                        state.score += 10 * state.multiplier;
+                        createExplosion(b.x, b.y, '#ffffff');
+                    }
+                }
+            }
+            
+            // Birds
+            for (let i = birds.length - 1; i >= 0; i--) {
+                let b = birds[i];
+                const dx = bunny.x - b.x;
+                const dy = bunny.y - b.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                
+                if (dist < CONFIG.bunnyRadius + 25) {
+                    state.multiplier *= 2;
+                    bunny.vy = 20; 
+                    state.score += 100 * state.multiplier;
+                    
+                    createExplosion(b.x, b.y, '#fffacD');
+                    birds.splice(i, 1);
+                    
+                    const combo = document.getElementById('combo-display');
+                    combo.innerText = `x${state.multiplier}`;
+                    combo.classList.remove('combo-active');
+                    void combo.offsetWidth; 
+                    combo.classList.add('combo-active');
+                } else {
+                    b.x += b.speed * b.dir;
+                    b.wing += 0.15;
+                }
+            }
+
+            // Particles
+            for(let p of particles) {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy -= 0.1;
+                p.life -= 0.02;
+            }
+            particles = particles.filter(p => p.life > 0);
+            
+            state.displayScore += (state.score - state.displayScore) * 0.1;
+            document.getElementById('score-container').innerText = Math.floor(state.displayScore).toLocaleString();
+        }
+
+        // --- RENDER LOOP ---
+        function draw() {
+            // Background
+            const grad = ctx.createLinearGradient(0, 0, 0, state.height);
+            grad.addColorStop(0, '#000814'); 
+            grad.addColorStop(1, '#001d3d'); 
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, state.width, state.height);
+
+            // Stars
+            ctx.fillStyle = '#FFF';
+            for(let s of stars) {
+                let sy = (s.y * state.height + state.cameraY * 0.05) % state.height;
+                if (sy < 0) sy += state.height;
+                
+                ctx.globalAlpha = s.alpha;
+                ctx.beginPath();
+                ctx.arc(s.x * state.width, sy, s.size, 0, Math.PI*2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+
+            // Ground
+            const groundScreen = worldToScreen(0, 0);
+            if (groundScreen.y < state.height + 100) {
+                ctx.fillStyle = '#e0faff';
+                ctx.shadowBlur = 50;
+                ctx.shadowColor = 'rgba(255,255,255,0.2)';
+                ctx.beginPath();
+                ctx.moveTo(0, state.height);
+                ctx.lineTo(0, groundScreen.y);
+                ctx.bezierCurveTo(
+                    state.width * 0.25, groundScreen.y - 40,
+                    state.width * 0.75, groundScreen.y + 40,
+                    state.width, groundScreen.y
+                );
+                ctx.lineTo(state.width, state.height);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            // Helper
+            const drawCircle = (x, y, r, color, glow=false) => {
+                const s = worldToScreen(x, y);
+                if (s.y < -50 || s.y > state.height + 50) return;
+
+                if (glow) {
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = color;
+                }
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, r, 0, Math.PI*2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            };
+
+            // Bells
+            for(let b of bells) {
+                const s = worldToScreen(b.x, b.y);
+                if (s.y < -50 || s.y > state.height + 50) continue;
+
+                ctx.save();
+                ctx.translate(s.x, s.y);
+                if (b.hit) ctx.globalAlpha = 0.2;
+                
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = 'rgba(255,255,255,0.3)';
+                ctx.fillStyle = '#fff';
+                
+                ctx.beginPath();
+                ctx.moveTo(0, -b.radius);
+                ctx.bezierCurveTo(b.radius, -b.radius, b.radius, b.radius*0.6, b.radius*1.2, b.radius);
+                ctx.lineTo(-b.radius*1.2, b.radius);
+                ctx.bezierCurveTo(-b.radius, b.radius*0.6, -b.radius, -b.radius, 0, -b.radius);
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(0, b.radius, b.radius*0.3, 0, Math.PI*2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+
+            // Birds
+            for(let b of birds) {
+                const s = worldToScreen(b.x, b.y);
+                ctx.save();
+                ctx.translate(s.x, s.y);
+                ctx.scale(b.dir * -1, 1);
+                
+                ctx.fillStyle = '#fffacD';
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = 'rgba(255, 250, 205, 0.4)';
+                
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 15, 8, 0, 0, Math.PI*2);
+                ctx.fill();
+                
+                const wy = Math.sin(b.wing) * 8;
+                ctx.beginPath();
+                ctx.moveTo(-5, -2);
+                ctx.quadraticCurveTo(5, -10-wy, 15, -2+wy);
+                ctx.lineTo(0, 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+
+            // Particles
+            for(let p of particles) {
+                drawCircle(p.x, p.y, 2 * p.life, p.color);
+            }
+
+            // Bunny
+            const bs = worldToScreen(bunny.x, bunny.y);
+            ctx.save();
+            ctx.translate(bs.x, bs.y);
+            ctx.rotate(bunny.rotation);
+            ctx.scale(bunny.scaleX, bunny.scaleY);
+            
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = 'rgba(255,255,255,0.6)';
+            ctx.fillStyle = '#fff';
+            
+            ctx.beginPath();
+            ctx.arc(0, 0, CONFIG.bunnyRadius, 0, Math.PI*2);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.ellipse(-6, -18, 5, 14, -0.2, 0, Math.PI*2);
+            ctx.ellipse(6, -18, 5, 14, 0.2, 0, Math.PI*2);
+            ctx.fill();
+            
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#1a1a1a';
+            ctx.beginPath();
+            ctx.arc(-5, -2, 2, 0, Math.PI*2);
+            ctx.arc(5, -2, 2, 0, Math.PI*2);
+            ctx.fill();
+            
+            ctx.fillStyle = 'rgba(255,100,100,0.2)';
+            ctx.beginPath();
+            ctx.arc(0, 3, 3, 0, Math.PI*2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function loop() {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            resetGame();
+        });
+
+        loop();
+
+    </script>
+</body>
+</html>
