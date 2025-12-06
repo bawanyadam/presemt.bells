@@ -450,31 +450,34 @@
 
             if (state.screen !== 'playing') return;
 
-            // 2. Bunny Physics - "Cloud Gliding"
-            
-            // INPUT SMOOTHING
-            // Extremely high smoothing factor for that lazy feel
-            // Was 0.1, now 0.05
+            // 2. Bunny Physics - "Cloud Drifting"
+
+            // DIRECTIONAL CONTROL (Winterbells-style)
+            // Instead of pulling toward cursor, apply gentle acceleration based on cursor direction
             if (state.inputActive) {
-                state.smoothedMouseX += (state.rawMouseX - state.smoothedMouseX) * 0.05; 
-            } else {
-                // If on ground, slowly return to center or just stop
-                state.smoothedMouseX += (0 - state.smoothedMouseX) * 0.1;
+                // Smoothly track cursor position
+                state.smoothedMouseX += (state.rawMouseX - state.smoothedMouseX) * 0.08;
+
+                // Calculate influence: how far from bunny is the cursor?
+                const dx = state.smoothedMouseX - bunny.x;
+
+                // Convert to directional influence (not proportional to distance)
+                // This creates "gentle nudging" rather than "magnetic pulling"
+                let influence = 0;
+                if (Math.abs(dx) > 20) {
+                    // Only apply force if cursor is meaningfully away from bunny
+                    influence = Math.sign(dx) * 0.13; // Constant gentle push in direction
+
+                    // Add slight proportional component for very large distances
+                    influence += dx * 0.0018;
+                }
+
+                bunny.vx += influence;
             }
 
-            // ACCELERATION
-            if (state.inputActive) {
-                const targetX = state.smoothedMouseX;
-                const dx = targetX - bunny.x;
-                
-                // Very, very low acceleration
-                // Was 0.02, now 0.006
-                bunny.vx += dx * 0.006; 
-            }
-
-            // RESISTANCE / DRAG
-            // High drag to counter the drift, creates "thick air" feel
-            bunny.vx *= 0.93; 
+            // DRIFT & RESISTANCE
+            // Lighter drag for more momentum carry-through
+            bunny.vx *= 0.95; 
 
             // Apply Velocity
             bunny.x += bunny.vx;
